@@ -8,10 +8,43 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-// GET /api/tasks — list tasks (personal or shared)
+// ==========================================
+// TAGS — must be BEFORE /:id routes
+// ==========================================
+
+// GET /api/tasks/tags
+router.get('/tags', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const { data, error } = await supabase
+    .from('tags')
+    .select('*')
+    .eq('created_by', req.userId!);
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json(data);
+});
+
+// POST /api/tasks/tags
+router.post('/tags', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const { name, color } = req.body;
+
+  const { data, error } = await supabase
+    .from('tags')
+    .insert({ name, color: color || '#6366f1', created_by: req.userId! })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(201).json(data);
+});
+
+// ==========================================
+// TASKS
+// ==========================================
+
+// GET /api/tasks
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   const { visibility } = req.query;
-  
+
   let query = supabase
     .from('tasks')
     .select(`
@@ -35,7 +68,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   return res.json(data);
 });
 
-// POST /api/tasks — create task
+// POST /api/tasks
 router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   const { title, description, visibility, deadline, urgency, repeat_interval, tag_ids } = req.body;
 
@@ -57,7 +90,6 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
   if (error) return res.status(500).json({ error: error.message });
 
-  // Attach tags
   if (tag_ids && tag_ids.length > 0) {
     await supabase.from('task_tags').insert(
       tag_ids.map((tag_id: string) => ({ task_id: task.id, tag_id }))
@@ -67,7 +99,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   return res.status(201).json(task);
 });
 
-// PATCH /api/tasks/:id — update task
+// PATCH /api/tasks/:id
 router.patch('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { title, description, visibility, deadline, urgency, status, repeat_interval, tag_ids } = req.body;
@@ -82,7 +114,6 @@ router.patch('/:id', authMiddleware, async (req: AuthRequest, res: Response) => 
   if (status !== undefined) {
     updates.status = status;
     updates.completed_at = status === 'completed' ? new Date().toISOString() : null;
-    // Reset notified flags when re-activating
     if (status === 'active') {
       updates.notified_soon = false;
       updates.notified_overdue = false;
@@ -99,7 +130,6 @@ router.patch('/:id', authMiddleware, async (req: AuthRequest, res: Response) => 
 
   if (error) return res.status(500).json({ error: error.message });
 
-  // Update tags
   if (tag_ids !== undefined) {
     await supabase.from('task_tags').delete().eq('task_id', id);
     if (tag_ids.length > 0) {
@@ -135,31 +165,6 @@ router.post('/:id/comments', authMiddleware, async (req: AuthRequest, res: Respo
     .from('task_comments')
     .insert({ task_id: id, user_id: req.userId!, content })
     .select('*, profiles:user_id (id, username, avatar_url)')
-    .single();
-
-  if (error) return res.status(500).json({ error: error.message });
-  return res.status(201).json(data);
-});
-
-// GET /api/tasks/tags — list user tags
-router.get('/tags', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const { data, error } = await supabase
-    .from('tags')
-    .select('*')
-    .eq('created_by', req.userId!);
-
-  if (error) return res.status(500).json({ error: error.message });
-  return res.json(data);
-});
-
-// POST /api/tasks/tags
-router.post('/tags', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const { name, color } = req.body;
-
-  const { data, error } = await supabase
-    .from('tags')
-    .insert({ name, color: color || '#6366f1', created_by: req.userId! })
-    .select()
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
