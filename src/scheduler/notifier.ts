@@ -33,7 +33,7 @@ async function checkDeadlines() {
     .gte('deadline', now.toISOString());
 
   for (const task of soonTasks || []) {
-    const profile = task.profiles as { telegram_chat_id: number | null } | null;
+    const profile = (task.profiles as unknown) as { telegram_chat_id: number | null } | null;
     if (!profile?.telegram_chat_id) continue;
 
     const deadline = new Date(task.deadline!);
@@ -60,7 +60,7 @@ async function checkDeadlines() {
     .lt('deadline', now.toISOString());
 
   for (const task of overdueTasks || []) {
-    const profile = task.profiles as { telegram_chat_id: number | null } | null;
+    const profile = (task.profiles as unknown) as { telegram_chat_id: number | null } | null;
     if (!profile?.telegram_chat_id) continue;
 
     const deadline = new Date(task.deadline!);
